@@ -21,10 +21,11 @@ import udesk.sdk.demo.R;
 
 public class UdeskInitKeyActivity extends Activity {
 
-//    //替换成你们注册的域名
+    //替换成你们注册的域名
     private String UDESK_DOMAIN = "showshow.udesk.cn";
     //替换成你们在后台生成的密钥
     private String UDESK_SECRETKEY = "c18d023ff18902fdfdb6ce15a11ef47b";
+
     private EditText mDomainEdit;
     //输入描述账号的EditText
     private EditText mKeyEdit;
