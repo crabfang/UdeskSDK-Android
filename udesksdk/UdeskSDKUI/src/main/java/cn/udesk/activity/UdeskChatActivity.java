@@ -22,6 +22,7 @@ import android.provider.MediaStore;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -152,6 +153,7 @@ public class UdeskChatActivity extends Activity implements IChatActivityView,
         public static final int onNewMessage = 7;
         public static final int RECORD_ERROR = 8;
         public static final int RECORD_Too_Short = 10;
+        public static final int Connecting_Error = 11;
         public static final int UPDATE_VOCIE_STATUS = 12;
         public static final int recordllegal = 13;
         public static final int status_notify = 14;
@@ -220,205 +222,217 @@ public class UdeskChatActivity extends Activity implements IChatActivityView,
             if (UdeskChatActivity.this.isFinishing()) {
                 return;
             }
-            switch (msg.what) {
-                case MessageWhat.loadHistoryDBMsg:
-                    if (mChatAdapter != null && mListView != null) {
-                        List<MessageInfo> msgs = (ArrayList<MessageInfo>) msg.obj;
-                        if (UdeskSDKManager.getInstance().getCommodity() != null) {
-                            msgs.add(UdeskSDKManager.getInstance().getCommodity());
-                        }
-                        mChatAdapter.listAddItems(msgs);
-                        mListView.onRefreshComplete();
-                        if (msg.arg1 == initViewMode) {
-                            mListView.setSelection(msgs.size());
-                        } else {
-                            mListView.setSelection(0);
-                        }
-                    }
-                    break;
-                case MessageWhat.NoAgent:
-                    mAgentInfo = (AgentInfo) msg.obj;
-                    setNoAgentStatus(mAgentInfo.getMessage());
-                    agentFlag = UdeskConst.AgentFlag.NoAgent;
-                    confirmToForm();
-                    break;
-                case MessageWhat.HasAgent:
-                    mAgentInfo = (AgentInfo) msg.obj;
-                    currentStatusIsOnline = true;
-                    showOnlieStatus(mAgentInfo);
-                    if (mPresenter != null) {
-                        mPresenter.SelfretrySendMsg();
-                    }
-                    break;
-                case MessageWhat.WaitAgent:
-                    mAgentInfo = (AgentInfo) msg.obj;
-                    setNoAgentStatus(mAgentInfo.getMessage());
-                    agentFlag = UdeskConst.AgentFlag.WaitAgent;
-                    this.postDelayed(new Runnable() {
-
-                        @Override
-                        public void run() {
-                            if (mPresenter != null) {
-                                mPresenter.getAgentInfo();
+            try {
+                switch (msg.what) {
+                    case MessageWhat.loadHistoryDBMsg:
+                        if (mChatAdapter != null && mListView != null) {
+                            List<MessageInfo> msgs = (ArrayList<MessageInfo>) msg.obj;
+                            if (UdeskSDKManager.getInstance().getCommodity() != null) {
+                                msgs.add(UdeskSDKManager.getInstance().getCommodity());
+                            }
+                            mChatAdapter.listAddItems(msgs);
+                            mListView.onRefreshComplete();
+                            if (msg.arg1 == initViewMode) {
+                                mListView.setSelection(msgs.size());
+                            } else {
+                                mListView.setSelection(0);
                             }
                         }
-                    }, QUEUE_RETEY_TIME);
-                    break;
-                case MessageWhat.refreshAdapter:
-                    if (mChatAdapter != null) {
-                        MessageInfo message = (MessageInfo) msg.obj;
-                        mChatAdapter.addItem(message);
-                        notifyRefresh();
-                    }
-                    break;
-                case MessageWhat.changeImState:
-                    String msgId = (String) msg.obj;
-                    int flag = msg.arg1;
-                    changeImState(msgId, flag);
-                    break;
-                case MessageWhat.onNewMessage:
-                    MessageInfo msgInfo = (MessageInfo) msg.obj;
-                    if (msgInfo.getMsgtype().equals(UdeskConst.ChatMsgTypeString.TYPE_REDIRECT)) {
-                        try {
-                            if (mPresenter != null) {
-                                redirectMsg = msgInfo;
-                                JSONObject json = new JSONObject(msgInfo.getMsgContent());
-                                String agent_id = json.optString("agent_id");
-                                String group_id = json.optString("group_id");
-                                mPresenter.getRedirectAgentInfo(agent_id, group_id);
-                            }
-
-                        } catch (JSONException e) {
-                            e.printStackTrace();
+                        break;
+                    case MessageWhat.NoAgent:
+                        mAgentInfo = (AgentInfo) msg.obj;
+                        setNoAgentStatus(mAgentInfo.getMessage());
+                        agentFlag = UdeskConst.AgentFlag.NoAgent;
+                        confirmToForm();
+                        break;
+                    case MessageWhat.HasAgent:
+                        mAgentInfo = (AgentInfo) msg.obj;
+                        currentStatusIsOnline = true;
+                        showOnlieStatus(mAgentInfo);
+                        if (mPresenter != null) {
+                            mPresenter.SelfretrySendMsg();
                         }
-                    } else {
+                        break;
+                    case MessageWhat.WaitAgent:
+                        mAgentInfo = (AgentInfo) msg.obj;
+                        setNoAgentStatus(mAgentInfo.getMessage());
+                        agentFlag = UdeskConst.AgentFlag.WaitAgent;
+                        this.postDelayed(new Runnable() {
+
+                            @Override
+                            public void run() {
+                                if (mPresenter != null) {
+                                    mPresenter.getAgentInfo();
+                                }
+                            }
+                        }, QUEUE_RETEY_TIME);
+                        break;
+                    case MessageWhat.refreshAdapter:
                         if (mChatAdapter != null) {
-                            if (mAgentInfo != null) {
-                                msgInfo.setAgentUrl(mAgentInfo.getHeadUrl());
-                                msgInfo.setNickName(mAgentInfo.getAgentNick());
-                            }
-                            mChatAdapter.addItem(msgInfo);
+                            MessageInfo message = (MessageInfo) msg.obj;
+                            mChatAdapter.addItem(message);
                             notifyRefresh();
                         }
-                    }
-                    break;
-                case MessageWhat.RECORD_ERROR:
-                    UdeskUtils.showToast(UdeskChatActivity.this, getResources()
-                            .getString(R.string.udesk_im_record_error));
-                    break;
-                case MessageWhat.RECORD_Too_Short:
-                    UdeskUtils.showToast(UdeskChatActivity.this, getResources()
-                            .getString(R.string.udesk_label_hint_too_short));
-                    break;
-                case MessageWhat.UPDATE_VOCIE_STATUS:
-                    updateRecordStatus(msg.arg1);
-                    break;
-                case MessageWhat.recordllegal:
-                    UdeskUtils.showToast(UdeskChatActivity.this, getResources()
-                            .getString(R.string.udesk_im_record_error));
-                    break;
-                case MessageWhat.status_notify:
-                    int onlineflag = msg.arg1;
-                    String jid = (String) msg.obj;
-                    if (onlineflag == UdeskCoreConst.ONLINEFLAG) {
-                        if (isbolcked.equals("true")) {
-                            return;
-                        }
+                        break;
+                    case MessageWhat.changeImState:
+                        String msgId = (String) msg.obj;
+                        int flag = msg.arg1;
+                        changeImState(msgId, flag);
+                        break;
+                    case MessageWhat.onNewMessage:
+                        MessageInfo msgInfo = (MessageInfo) msg.obj;
+                        if (msgInfo.getMsgtype().equals(UdeskConst.ChatMsgTypeString.TYPE_REDIRECT)) {
+                            try {
+                                if (mPresenter != null) {
+                                    redirectMsg = msgInfo;
+                                    JSONObject json = new JSONObject(msgInfo.getMsgContent());
+                                    String agent_id = json.optString("agent_id");
+                                    String group_id = json.optString("group_id");
+                                    mPresenter.getRedirectAgentInfo(agent_id, group_id);
+                                }
 
-                        if (mAgentInfo == null || !jid.contains(mAgentInfo.getAgentJid())) {
-                            return;
-                        }
-                        if (!currentStatusIsOnline && isNeedStartExpandabLyout) {
-                            expandableLayout.startAnimation(true);
-                            currentStatusIsOnline = true;
-                            isNeedStartExpandabLyout = false;
-                        }
-                        showOnlieStatus(mAgentInfo);
-                        if (formWindow != null) {
-                            formWindow.cancle();
-                        }
-                        if (!hasSendCommodity) {
-                            hasSendCommodity = true;
-                            sendCommodityMsg(UdeskSDKManager.getInstance().getCommodity());
-                        }
-                    } else if (onlineflag == UdeskCoreConst.OFFLINEFLAG) {
-                        if (mPresenter != null) {
-                            mPresenter.getIMStatus(mAgentInfo);
-                        }
-                    }
-                    break;
-                case MessageWhat.IM_STATUS:
-                    String imStatus = (String) msg.obj;
-                    if (imStatus.equals("off")) {
-                        if (mAgentInfo != null) {
-                            if (mTitlebar != null) {
-                                mTitlebar
-                                        .setLeftTextSequence(mAgentInfo.getAgentNick());
-                                mTitlebar.getudeskStateImg().setImageResource(R.drawable.udesk_offline_status);
+                            } catch (JSONException e) {
+                                e.printStackTrace();
                             }
                         } else {
-                            setNoAgentStatus(getResources().getString(
-                                    R.string.udesk_label_customer_offline));
+                            if (mChatAdapter != null) {
+                                if (mAgentInfo != null) {
+                                    msgInfo.setAgentUrl(mAgentInfo.getHeadUrl());
+                                    msgInfo.setNickName(mAgentInfo.getAgentNick());
+                                    if(!mAgentInfo.getAgentJid().contains(msgInfo.getmAgentJid())){
+                                        mAgentInfo.setAgentJid(msgInfo.getmAgentJid());
+                                        mPresenter.createIMCustomerInfo();
+                                    }
+                                }
+                                mChatAdapter.addItem(msgInfo);
+                                notifyRefresh();
+                            }
                         }
-                        if (currentStatusIsOnline) {
-                            expandableLayout.startAnimation(false);
-                            currentStatusIsOnline = false;
-                            isNeedStartExpandabLyout = true;
+                        break;
+                    case MessageWhat.RECORD_ERROR:
+                        UdeskUtils.showToast(UdeskChatActivity.this, getResources()
+                                .getString(R.string.udesk_im_record_error));
+                        break;
+                    case MessageWhat.RECORD_Too_Short:
+                        UdeskUtils.showToast(UdeskChatActivity.this, getResources()
+                                .getString(R.string.udesk_label_hint_too_short));
+                        break;
+                    case MessageWhat.Connecting_Error:
+                        showErrorStatus(getString(
+                                R.string.udesk_agent_connecting_error));
+                        break;
+                    case MessageWhat.UPDATE_VOCIE_STATUS:
+                        updateRecordStatus(msg.arg1);
+                        break;
+                    case MessageWhat.recordllegal:
+                        UdeskUtils.showToast(UdeskChatActivity.this, getResources()
+                                .getString(R.string.udesk_im_record_error));
+                        break;
+                    case MessageWhat.status_notify:
+                        int onlineflag = msg.arg1;
+                        String jid = (String) msg.obj;
+                        if (onlineflag == UdeskCoreConst.ONLINEFLAG) {
+                            if (isbolcked.equals("true")) {
+                                return;
+                            }
+
+                            if (mAgentInfo == null || !jid.contains(mAgentInfo.getAgentJid())) {
+                                return;
+                            }
+                            if (!currentStatusIsOnline && isNeedStartExpandabLyout) {
+                                expandableLayout.startAnimation(true);
+                                currentStatusIsOnline = true;
+                                isNeedStartExpandabLyout = false;
+                            }
+                            showOnlieStatus(mAgentInfo);
+                            if (formWindow != null) {
+                                formWindow.cancle();
+                            }
+                            if (!hasSendCommodity) {
+                                hasSendCommodity = true;
+                                sendCommodityMsg(UdeskSDKManager.getInstance().getCommodity());
+                            }
+                        } else if (onlineflag == UdeskCoreConst.OFFLINEFLAG) {
+                            if (mPresenter != null) {
+                                mPresenter.getIMStatus(mAgentInfo);
+                            }
                         }
-                        confirmToForm();
-                    }
-                    break;
-                case MessageWhat.IM_BOLACKED:
-                    isbolcked = (String) msg.obj;
-                    if (isbolcked != null && isbolcked.equals("true")) {
-                        setNoAgentStatus(
-                                UdeskChatActivity.this
-                                        .getString(R.string.add_bolcked_tips));
-                        toBolckedView();
-                        UdeskMessageManager.getInstance().cancelXmppConnect().subscribe(new Subscriber<Boolean>() {
-                            @Override
-                            public void onCompleted() {
-
+                        break;
+                    case MessageWhat.IM_STATUS:
+                        String imStatus = (String) msg.obj;
+                        if (imStatus.equals("off")) {
+                            if (mAgentInfo != null) {
+                                if (mTitlebar != null) {
+                                    mTitlebar
+                                            .setLeftTextSequence(mAgentInfo.getAgentNick());
+                                    mTitlebar.getudeskStateImg().setImageResource(R.drawable.udesk_offline_status);
+                                }
+                            } else {
+                                setNoAgentStatus(getResources().getString(
+                                        R.string.udesk_label_customer_offline));
                             }
-
-                            @Override
-                            public void onError(Throwable e) {
-
+                            if (currentStatusIsOnline) {
+                                expandableLayout.startAnimation(false);
+                                currentStatusIsOnline = false;
+                                isNeedStartExpandabLyout = true;
                             }
+                            confirmToForm();
+                        }
+                        break;
+                    case MessageWhat.IM_BOLACKED:
+                        isbolcked = (String) msg.obj;
+                        if (isbolcked != null && isbolcked.equals("true")) {
+                            setNoAgentStatus(
+                                    UdeskChatActivity.this
+                                            .getString(R.string.add_bolcked_tips));
+                            toBolckedView();
+                            UdeskMessageManager.getInstance().cancelXmppConnect().subscribe(new Subscriber<Boolean>() {
+                                @Override
+                                public void onCompleted() {
 
-                            @Override
-                            public void onNext(Boolean aBoolean) {
+                                }
 
-                            }
-                        });
-                    }
-                    break;
-                case  MessageWhat.Has_Survey:
-                    UdeskUtils.showToast(UdeskChatActivity.this, getResources()
-                            .getString(R.string.udesk_has_survey));
-                    break;
-                case MessageWhat.Survey_error:
-                    UdeskUtils.showToast(UdeskChatActivity.this, getResources()
-                            .getString(R.string.udesk_survey_error));
-                    break;
-                case MessageWhat.redirectSuccess:
-                    MessageInfo redirectSuccessmsg = (MessageInfo) msg.obj;
-                    if (mChatAdapter != null) {
-                        mChatAdapter.addItem(redirectSuccessmsg);
-                        notifyRefresh();
-                    }
-                    currentStatusIsOnline = true;
-                    showOnlieStatus(mAgentInfo);
+                                @Override
+                                public void onError(Throwable e) {
 
-                    break;
-                case MessageWhat.surveyNotify:
+                                }
 
-                    SurveyOptionsModel surveyOptions = (SurveyOptionsModel) msg.obj;
-                    if (surveyOptions != null) {
-                        toLuanchSurveyActivity(surveyOptions);
-                    }
-                    break;
+                                @Override
+                                public void onNext(Boolean aBoolean) {
 
+                                }
+                            });
+                        }
+                        break;
+                    case  MessageWhat.Has_Survey:
+                        UdeskUtils.showToast(UdeskChatActivity.this, getResources()
+                                .getString(R.string.udesk_has_survey));
+                        break;
+                    case MessageWhat.Survey_error:
+                        UdeskUtils.showToast(UdeskChatActivity.this, getResources()
+                                .getString(R.string.udesk_survey_error));
+                        break;
+                    case MessageWhat.redirectSuccess:
+                        MessageInfo redirectSuccessmsg = (MessageInfo) msg.obj;
+                        if (mChatAdapter != null) {
+                            mChatAdapter.addItem(redirectSuccessmsg);
+                            notifyRefresh();
+                        }
+                        currentStatusIsOnline = true;
+                        showOnlieStatus(mAgentInfo);
+
+                        break;
+                    case MessageWhat.surveyNotify:
+
+                        SurveyOptionsModel surveyOptions = (SurveyOptionsModel) msg.obj;
+                        if (surveyOptions != null) {
+                            toLuanchSurveyActivity(surveyOptions);
+                        }
+                        break;
+
+                }
+            } catch (Resources.NotFoundException e) {
+                e.printStackTrace();
             }
         }
     };
@@ -481,6 +495,17 @@ public class UdeskChatActivity extends Activity implements IChatActivityView,
             mTitlebar
                     .setLeftTextSequence(mAgentInfo.getAgentNick());
             mTitlebar.getudeskStateImg().setImageResource(R.drawable.udesk_online_status);
+        }
+
+    }
+
+    //设置客服连接出错状态
+    private void showErrorStatus(String error) {
+        currentStatusIsOnline = false;
+        if (mTitlebar != null) {
+            mTitlebar
+                    .setLeftTextSequence(error);
+            mTitlebar.getudeskStateImg().setVisibility(View.GONE);
         }
 
     }
@@ -743,6 +768,7 @@ public class UdeskChatActivity extends Activity implements IChatActivityView,
     private void changeImState(String msgId, int state) {
         if (!TextUtils.isEmpty(msgId) && mListView != null
                 && mChatAdapter != null) {
+            //getChildAt(i) 只能获取可见区域View， 会有bug
             for (int i = mListView.getChildCount() - 1; i >= 0; i--) {
                 View child = mListView.getChildAt(i);
                 if (child != null) {
@@ -751,6 +777,8 @@ public class UdeskChatActivity extends Activity implements IChatActivityView,
                     }
                 }
             }
+            //当不在可见区域则调用整个刷新
+            mChatAdapter.updateStatus(msgId, state);
         }
     }
 
@@ -779,67 +807,75 @@ public class UdeskChatActivity extends Activity implements IChatActivityView,
     @Override
     public void dealAgentInfo(final AgentInfo agentInfo) {
 
-        switch (agentInfo.getAgentCode()) {
-            case UdeskConst.AgentReponseCode.NoAgent:
-                Message msgNoAgent = mHandler.obtainMessage(MessageWhat.NoAgent);
-                msgNoAgent.obj = agentInfo;
-                mHandler.sendMessage(msgNoAgent);
-                break;
-            case UdeskConst.AgentReponseCode.HasAgent:
-                // 有客服连接xmpp, titlebar上显示
-                UdeskMessageManager.getInstance().cancelXmppConnect().flatMap(new Func1<Boolean, Observable<Boolean>>() {
-                    @Override
-                    public Observable<Boolean> call(Boolean aBoolean) {
-                        return UdeskMessageManager.getInstance().loginXmppService();
-                    }
-                }).subscribe(new Subscriber<Boolean>() {
-                    @Override
-                    public void onCompleted() {
+        try {
+            switch (agentInfo.getAgentCode()) {
+                case UdeskConst.AgentReponseCode.NoAgent:
+                    Message msgNoAgent = mHandler.obtainMessage(MessageWhat.NoAgent);
+                    msgNoAgent.obj = agentInfo;
+                    mHandler.sendMessage(msgNoAgent);
+                    break;
+                case UdeskConst.AgentReponseCode.HasAgent:
+                    // 有客服连接xmpp, titlebar上显示
+                    UdeskMessageManager.getInstance().cancelXmppConnect().flatMap(new Func1<Boolean, Observable<Boolean>>() {
+                        @Override
+                        public Observable<Boolean> call(Boolean aBoolean) {
+                            return UdeskMessageManager.getInstance().loginXmppService();
+                        }
+                    }).subscribe(new Subscriber<Boolean>() {
+                        @Override
+                        public void onCompleted() {
 
-                    }
+                        }
 
-                    @Override
-                    public void onError(Throwable e) {
-
-                    }
-
-                    @Override
-                    public void onNext(Boolean aBoolean) {
-                        if (aBoolean) {
-                            UdeskSDKManager.isSessioning = true;
-                            UdeskDBManager.getInstance().addAgentInfo(agentInfo);
-                            Message msgHasAgent = mHandler.obtainMessage(MessageWhat.HasAgent);
-                            msgHasAgent.obj = agentInfo;
+                        @Override
+                        public void onError(Throwable e) {
+                            Message msgHasAgent = mHandler.obtainMessage(MessageWhat.Connecting_Error);
                             mHandler.sendMessage(msgHasAgent);
                         }
-                    }
-                });
-                break;
-            case UdeskConst.AgentReponseCode.WaitAgent:
-                Message msgWaitAgent = mHandler
-                        .obtainMessage(MessageWhat.WaitAgent);
-                msgWaitAgent.obj = agentInfo;
-                mHandler.sendMessage(msgWaitAgent);
-                break;
-            case UdeskConst.AgentReponseCode.NonExistentAgent:
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(UdeskChatActivity.this, getString(R.string.udesk_nonexistent_agent), Toast.LENGTH_SHORT).show();
-                    }
-                });
-                break;
-            case UdeskConst.AgentReponseCode.NonExistentGroupId:
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(UdeskChatActivity.this, getString(R.string.udesk_nonexistent_groupId), Toast.LENGTH_SHORT).show();
-                    }
-                });
-                break;
 
-            default:
-                break;
+                        @Override
+                        public void onNext(Boolean aBoolean) {
+                            if (aBoolean) {
+                                UdeskSDKManager.isSessioning = true;
+                                UdeskDBManager.getInstance().addAgentInfo(agentInfo);
+                                Message msgHasAgent = mHandler.obtainMessage(MessageWhat.HasAgent);
+                                msgHasAgent.obj = agentInfo;
+                                mHandler.sendMessage(msgHasAgent);
+                            }else{
+                                Message msgHasAgent = mHandler.obtainMessage(MessageWhat.Connecting_Error);
+                                mHandler.sendMessage(msgHasAgent);
+                            }
+                        }
+                    });
+                    break;
+                case UdeskConst.AgentReponseCode.WaitAgent:
+                    Message msgWaitAgent = mHandler
+                            .obtainMessage(MessageWhat.WaitAgent);
+                    msgWaitAgent.obj = agentInfo;
+                    mHandler.sendMessage(msgWaitAgent);
+                    break;
+                case UdeskConst.AgentReponseCode.NonExistentAgent:
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(UdeskChatActivity.this, getString(R.string.udesk_nonexistent_agent), Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                    break;
+                case UdeskConst.AgentReponseCode.NonExistentGroupId:
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(UdeskChatActivity.this, getString(R.string.udesk_nonexistent_groupId), Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                    break;
+
+                default:
+                    break;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -1078,7 +1114,6 @@ public class UdeskChatActivity extends Activity implements IChatActivityView,
     //弹出表单留言的提示框
     private void confirmToForm() {
         try {
-
             String positiveLabel = this.getString(R.string.udesk_ok);
 
             String negativeLabel = this.getString(R.string.udesk_cancel);

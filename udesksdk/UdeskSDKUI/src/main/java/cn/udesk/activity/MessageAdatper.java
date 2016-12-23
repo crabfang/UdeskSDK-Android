@@ -802,6 +802,23 @@ public class MessageAdatper extends BaseAdapter {
 
         return false;
     }
+    
+    /**
+     * 根据消息ID  修改对应消息的状态
+     */
+    public void updateStatus(String msgId, int state){
+        try {
+            for (MessageInfo msg : list){
+                if (msg.getMsgId() != null && msg.getMsgId().equals(msgId)){
+                    msg.setSendFlag(state);
+                }
+            }
+            notifyDataSetChanged();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 
     public boolean changeVideoTime(View convertView, String msgId, int duration) {
         Object tag = convertView.getTag();
